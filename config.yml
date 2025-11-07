@@ -1,0 +1,4 @@
+spectrogram:
+  sample_rate: 17
+  window_size: 32
+  window_overlap: 16
