@@ -2,3 +2,8 @@ spectrogram:
   sample_rate: 17
   window_size: 32
   window_overlap: 16
+
+wandb:
+  project_name: "sleep-apnea-detection"
+
+checkpoint_dir: "checkpoints"

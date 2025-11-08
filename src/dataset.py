@@ -23,7 +23,7 @@ class SleepApneaDataset(Dataset):
         )
         label = self.labels[idx]
         if self.transform:
-            spectrogram = self.transform(spectrogram)
+            spectrogram = self.transform(torch.tensor(spectrogram)).float()
         return spectrogram, label
     
     def get_statistics(self):
@@ -35,7 +35,7 @@ class SleepApneaDataset(Dataset):
         )
 
         if self.transform:
-            transformed_data = self.transform(spectrogram)
+            transformed_data = self.transform(torch.tensor(spectrogram))
         else:
             transformed_data = spectrogram
 

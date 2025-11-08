@@ -1,7 +1,7 @@
 import yaml
 
-
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class SpectrogramConfig(BaseSettings):
@@ -9,9 +9,14 @@ class SpectrogramConfig(BaseSettings):
     window_size: int
     window_overlap: int
 
+class WandBConfig(BaseSettings):
+    project_name: str
+    key: str = Field(validation_alias="WANDB_KEY")
 
 class Config(BaseSettings):
     spectrogram: SpectrogramConfig
+    wandb: WandBConfig
+    checkpoint_dir: str
 
 
 with open("config.yml", "r") as f:
