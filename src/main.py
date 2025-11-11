@@ -73,15 +73,16 @@ def main(
         val_dataset, batch_size=batch_size, sampler=sampler_val, num_workers=num_workers, pin_memory=True
     )
 
+    wandb.login(key=CONFIG.wandb.key)
+    wandb_logger = WandbLogger(project=CONFIG.wandb.project_name)
+
+    checkpoint_filename = wandb_logger.experiment.name + "-{epoch}-{step}-{val_acc:.4f}"
     train_callbacks = [
-        callbacks.ModelCheckpoint(monitor="val_acc", mode="max", dirpath=CONFIG.checkpoint_dir),
+        callbacks.ModelCheckpoint(monitor="val_acc", mode="max", dirpath=CONFIG.checkpoint_dir, filename=checkpoint_filename),
         callbacks.EarlyStopping(monitor="val_acc", patience=early_stopping_patience, mode="max"),
         callbacks.LearningRateMonitor(logging_interval='epoch'),
         callbacks.RichProgressBar(),
     ]
-
-    wandb.login(key=CONFIG.wandb.key)
-    wandb_logger = WandbLogger(project=CONFIG.wandb.project_name)
 
     trainer = L.Trainer(
         max_epochs=-1,
