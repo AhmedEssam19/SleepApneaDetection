@@ -10,6 +10,7 @@ from torch.nn import CrossEntropyLoss
 from torch.optim import AdamW
 from timm.models._manipulate import checkpoint_seq
 from typing import Literal
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
@@ -184,4 +185,11 @@ class SleepApneaModel(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate)
-        return optimizer
+        optimizer_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": optimizer_scheduler,
+                "monitor": "val_loss"
+            }
+        }

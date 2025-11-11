@@ -28,7 +28,7 @@ def main(
         learning_rate: float = 1e-4,
         batch_size: int = 32,
         num_workers: int = 4,
-        early_stopping_patience: int = 10,
+        early_stopping_patience: int = 20,
         logging_steps: int = 1,
         seed: int = 42
     ):
@@ -76,6 +76,7 @@ def main(
     train_callbacks = [
         callbacks.ModelCheckpoint(monitor="val_acc", mode="max", dirpath=CONFIG.checkpoint_dir),
         callbacks.EarlyStopping(monitor="val_acc", patience=early_stopping_patience, mode="max"),
+        callbacks.LearningRateMonitor(logging_interval='epoch'),
         callbacks.RichProgressBar(),
     ]
 
@@ -97,6 +98,8 @@ def main(
         learning_rate=learning_rate,
         pretrained_vit_path=pretrained_vit_path
     )
+    wandb_logger.watch(model, log="gradients", log_freq=10)
+    wandb_logger.log_hyperparams({"batch_size": batch_size, "early_stopping_patience": early_stopping_patience})
 
     trainer.fit(model, train_dataloader, val_dataloader)
 
