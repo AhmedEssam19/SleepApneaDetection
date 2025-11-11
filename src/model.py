@@ -39,9 +39,6 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             for param in self.blocks[:num_blocks].parameters():
                 param.requires_grad = False
 
-        for param in self.patch_embed.proj.parameters():
-            param.requires_grad = False
-
     def freeze_encoder_lora(self):
         # Freeze all params
         for param in self.blocks.parameters():
@@ -110,11 +107,6 @@ class SleepApneaModel(L.LightningModule):
             pretrained_vit_path: str = None
         ):
         super().__init__()
-        self.channel_mapper = nn.Sequential(
-            nn.Conv2d(5, 3, kernel_size=3, stride=1, padding=1),
-            nn.ELU(),
-            nn.Conv2d(3, 3, kernel_size=3, stride=1, padding=1),
-        )
         self.vit = self._init_vit(vit_size, num_classes)
         self._setup_fintuneing(finetuneing_method, pretrained_vit_path)
         self.loss_fn = CrossEntropyLoss()
@@ -129,7 +121,7 @@ class SleepApneaModel(L.LightningModule):
             "medium": vit_medium_patch16,
             "large": vit_large_patch16
         }
-        return vit[vit_size](num_classes=num_classes, global_pool="token")
+        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=5)
     
     def _setup_fintuneing(self, finetuneing_method: Literal["scratch", "head", "full", "lora"], checkpoint_path: str = None):
         if finetuneing_method == "head":
@@ -143,13 +135,11 @@ class SleepApneaModel(L.LightningModule):
             if checkpoint_path is None:
                 raise ValueError("Checkpoint path must be provided for finetuning.")
             
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
-            self.vit.load_state_dict(checkpoint['state_dict'])
+            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+            self.vit.load_state_dict(checkpoint['model'], strict=False)
 
     def forward(self, inputs):
-        mapped_inputs = self.channel_mapper(inputs)
-        assert mapped_inputs.shape[2:] == (224, 224), f"Input size must be (224, 224), but got {mapped_inputs.shape[2:]}"
-        output = self.vit(mapped_inputs)
+        output = self.vit(inputs)
         return output
 
     def training_step(self, batch, _):
@@ -185,7 +175,7 @@ class SleepApneaModel(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate)
-        optimizer_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5)
+        optimizer_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
