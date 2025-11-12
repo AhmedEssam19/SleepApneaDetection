@@ -135,8 +135,15 @@ class SleepApneaModel(L.LightningModule):
             if checkpoint_path is None:
                 raise ValueError("Checkpoint path must be provided for finetuning.")
             
-            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
-            self.vit.load_state_dict(checkpoint['model'], strict=False)
+            self._load_pretrained_weights(checkpoint_path)
+            
+    def _load_pretrained_weights(self, checkpoint_path: str):    
+        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+        for key in list(checkpoint['model'].keys()):
+            if key.startswith('head.') or key.startswith('patch_embed.'):
+                print("Removing key from pretrained weights:", key)
+                del checkpoint['model'][key]
+        self.vit.load_state_dict(checkpoint['model'], strict=False)
 
     def forward(self, inputs):
         output = self.vit(inputs)
