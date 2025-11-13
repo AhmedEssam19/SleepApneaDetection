@@ -11,6 +11,7 @@ from torch.optim import AdamW
 from timm.models._manipulate import checkpoint_seq
 from typing import Literal
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from lora import create_lora_model
 
 
 class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
@@ -46,14 +47,17 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
         # Unfreeze LoRA layers
         for block in self.blocks:
-            for param in block.attn.qkv.lora_q.parameters():
-                param.requires_grad = True
-            for param in block.attn.qkv.lora_v.parameters():
+            for param in block.attn.qkv.lora.parameters():
                 param.requires_grad = True
 
-        # Unfreeze classifier layer
-        for param in self.head.parameters():
-            param.requires_grad = True
+            for param in block.attn.proj.lora.parameters():
+                param.requires_grad = True
+
+            for param in block.mlp.fc1.lora.parameters():
+                param.requires_grad = True
+
+            for param in block.mlp.fc2.lora.parameters():
+                param.requires_grad = True
 
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
@@ -104,11 +108,13 @@ class SleepApneaModel(L.LightningModule):
             finetuneing_method: Literal["scratch", "head", "full", "lora"],
             num_classes: int,
             learning_rate: float,
+            rank: int,
+            alpha: float,
             pretrained_vit_path: str = None
         ):
         super().__init__()
         self.vit = self._init_vit(vit_size, num_classes)
-        self._setup_fintuneing(finetuneing_method, pretrained_vit_path)
+        self._setup_fintuneing(finetuneing_method, rank, alpha, pretrained_vit_path)
         self.loss_fn = CrossEntropyLoss()
         self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
         self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
@@ -123,19 +129,20 @@ class SleepApneaModel(L.LightningModule):
         }
         return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=5)
     
-    def _setup_fintuneing(self, finetuneing_method: Literal["scratch", "head", "full", "lora"], checkpoint_path: str = None):
-        if finetuneing_method == "head":
-            self.vit.freeze_encoder()
-        elif finetuneing_method == "lora":
-            self.vit.freeze_encoder_lora()
-        elif finetuneing_method != "scratch" and finetuneing_method != "full":
-            raise ValueError(f"Unknown finetuneing_method: {finetuneing_method}")
-        
+    def _setup_fintuneing(self, finetuneing_method: Literal["scratch", "head", "full", "lora"], rank: int, alpha: int, checkpoint_path: str = None):
         if finetuneing_method != "scratch":
             if checkpoint_path is None:
                 raise ValueError("Checkpoint path must be provided for finetuning.")
             
             self._load_pretrained_weights(checkpoint_path)
+        
+        if finetuneing_method == "head":
+            self.vit.freeze_encoder()
+        elif finetuneing_method == "lora":
+            self.vit = create_lora_model(self.vit, rank, alpha)
+            self.vit.freeze_encoder_lora()
+        elif finetuneing_method != "scratch" and finetuneing_method != "full":
+            raise ValueError(f"Unknown finetuneing_method: {finetuneing_method}")
             
     def _load_pretrained_weights(self, checkpoint_path: str):    
         checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
@@ -143,7 +150,8 @@ class SleepApneaModel(L.LightningModule):
             if key.startswith('head.') or key.startswith('patch_embed.'):
                 print("Removing key from pretrained weights:", key)
                 del checkpoint['model'][key]
-        self.vit.load_state_dict(checkpoint['model'], strict=False)
+        incompatible_keys = self.vit.load_state_dict(checkpoint['model'], strict=False)
+        print("Missing keys when loading pretrained weights:", incompatible_keys.missing_keys)
 
     def forward(self, inputs):
         output = self.vit(inputs)

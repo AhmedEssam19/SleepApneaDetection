@@ -18,12 +18,16 @@ from dataset import SleepApneaDataset
 from model import SleepApneaModel
 from config import CONFIG
 
+app = typer.Typer(pretty_exceptions_show_locals=False)
 
+@app.command()
 def main(
         data_path: Annotated[str, typer.Option()],
         labels_path: Annotated[str, typer.Option()],
         vit_size: Annotated[Literal["small", "medium", "large"], typer.Option()],
         finetuning_method: Annotated[Literal["scratch", "head", "full", "lora"], typer.Option()],
+        rank: int = 4,
+        alpha: float = 16,
         pretrained_vit_path: str = None,
         learning_rate: float = 1e-4,
         batch_size: int = 32,
@@ -97,6 +101,8 @@ def main(
         finetuneing_method=finetuning_method,
         num_classes=len(np.unique(labels)),
         learning_rate=learning_rate,
+        rank=rank,
+        alpha=alpha,
         pretrained_vit_path=pretrained_vit_path
     )
     wandb_logger.watch(model, log="gradients", log_freq=10)
@@ -106,4 +112,4 @@ def main(
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    app()
