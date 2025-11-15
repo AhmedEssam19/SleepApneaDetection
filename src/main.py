@@ -31,6 +31,7 @@ def main(
         pretrained_vit_path: str = None,
         learning_rate: float = 1e-4,
         label_smoothing: float = 0.0,
+        use_augmentation: bool = False,
         batch_size: int = 32,
         num_workers: int = 4,
         early_stopping_patience: int = 20,
@@ -59,16 +60,28 @@ def main(
     dataset = SleepApneaDataset(X_train, y_train, transform=transform)
     mean, std = dataset.get_statistics()
 
-    # preprocessing transforms
-    transform_train = transforms.Compose([
+    transform_validation = transforms.Compose([
         transforms.Lambda(lambda x: 10 * torch.log10(x + 1e-12)),
         transforms.Resize((224, 224), antialias=True,
                           interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.Normalize(mean=mean, std=std)
     ])
 
+    if use_augmentation:
+        transform_train = transforms.Compose([
+            transforms.Lambda(lambda x: 10 * torch.log10(x + 1e-12)),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop((14, 7)),
+            transforms.Resize((224, 224), antialias=True,
+                            interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.Normalize(mean=mean, std=std)
+        ])
+    else:
+        transform_train = transform_validation
+
     train_dataset = SleepApneaDataset(X_train, y_train, transform=transform_train)
-    val_dataset = SleepApneaDataset(X_val, y_val, transform=transform_train)
+    val_dataset = SleepApneaDataset(X_val, y_val, transform=transform_validation)
     sampler_train = RandomSampler(train_dataset)
     sampler_val = SequentialSampler(val_dataset)
     train_dataloader = DataLoader(
@@ -111,7 +124,8 @@ def main(
     wandb_logger.log_hyperparams({
         "batch_size": batch_size,
         "early_stopping_patience": early_stopping_patience,
-        "label_smoothing": label_smoothing
+        "label_smoothing": label_smoothing,
+        "use_augmentation": use_augmentation
     })
 
     trainer.fit(model, train_dataloader, val_dataloader)
