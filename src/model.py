@@ -108,6 +108,7 @@ class SleepApneaModel(L.LightningModule):
             finetuneing_method: Literal["scratch", "head", "full", "lora"],
             num_classes: int,
             learning_rate: float,
+            label_smoothing: float,
             rank: int,
             alpha: float,
             pretrained_vit_path: str = None
@@ -115,7 +116,7 @@ class SleepApneaModel(L.LightningModule):
         super().__init__()
         self.vit = self._init_vit(vit_size, num_classes)
         self._setup_fintuneing(finetuneing_method, rank, alpha, pretrained_vit_path)
-        self.loss_fn = CrossEntropyLoss()
+        self.loss_fn = CrossEntropyLoss(label_smoothing=label_smoothing)
         self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
         self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
         self.learning_rate = learning_rate

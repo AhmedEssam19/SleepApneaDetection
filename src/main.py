@@ -30,6 +30,7 @@ def main(
         alpha: float = 16,
         pretrained_vit_path: str = None,
         learning_rate: float = 1e-4,
+        label_smoothing: float = 0.0,
         batch_size: int = 32,
         num_workers: int = 4,
         early_stopping_patience: int = 20,
@@ -101,12 +102,17 @@ def main(
         finetuneing_method=finetuning_method,
         num_classes=len(np.unique(labels)),
         learning_rate=learning_rate,
+        label_smoothing=label_smoothing,
         rank=rank,
         alpha=alpha,
         pretrained_vit_path=pretrained_vit_path
     )
     wandb_logger.watch(model, log="gradients", log_freq=10)
-    wandb_logger.log_hyperparams({"batch_size": batch_size, "early_stopping_patience": early_stopping_patience})
+    wandb_logger.log_hyperparams({
+        "batch_size": batch_size,
+        "early_stopping_patience": early_stopping_patience,
+        "label_smoothing": label_smoothing
+    })
 
     trainer.fit(model, train_dataloader, val_dataloader)
 
