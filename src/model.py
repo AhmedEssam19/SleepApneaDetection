@@ -81,8 +81,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
 
 def vit_small_patch16(**kwargs):
-    model = VisionTransformer(
-        patch_size=16, embed_dim=512, depth=12, num_heads=8, mlp_ratio=4, qkv_bias=True,
+    model = VisionTransformer(embed_dim=512, depth=12, num_heads=8, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
@@ -106,6 +105,7 @@ class SleepApneaModel(L.LightningModule):
             self, 
             vit_size: Literal["small", "medium", "large"],
             finetuneing_method: Literal["scratch", "head", "full", "lora"],
+            patch_size: int,
             num_classes: int,
             learning_rate: float,
             label_smoothing: float,
@@ -114,7 +114,7 @@ class SleepApneaModel(L.LightningModule):
             pretrained_vit_path: str = None
         ):
         super().__init__()
-        self.vit = self._init_vit(vit_size, num_classes)
+        self.vit = self._init_vit(vit_size, num_classes, patch_size)
         self._setup_fintuneing(finetuneing_method, rank, alpha, pretrained_vit_path)
         self.loss_fn = CrossEntropyLoss(label_smoothing=label_smoothing)
         self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
@@ -122,13 +122,13 @@ class SleepApneaModel(L.LightningModule):
         self.learning_rate = learning_rate
         self.save_hyperparameters()
 
-    def _init_vit(self, vit_size: Literal["small", "medium", "large"], num_classes: int):
+    def _init_vit(self, vit_size: Literal["small", "medium", "large"], num_classes: int, patch_size: int):
         vit = {
             "small": vit_small_patch16,
             "medium": vit_medium_patch16,
             "large": vit_large_patch16
         }
-        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=5)
+        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=5, patch_size=patch_size)
     
     def _setup_fintuneing(self, finetuneing_method: Literal["scratch", "head", "full", "lora"], rank: int, alpha: int, checkpoint_path: str = None):
         if finetuneing_method != "scratch":

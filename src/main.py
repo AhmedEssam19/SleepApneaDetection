@@ -26,6 +26,7 @@ def main(
         labels_path: Annotated[str, typer.Option()],
         vit_size: Annotated[Literal["small", "medium", "large"], typer.Option()],
         finetuning_method: Annotated[Literal["scratch", "head", "full", "lora"], typer.Option()],
+        patch_size: int = 16,
         rank: int = 4,
         alpha: float = 16,
         pretrained_vit_path: str = None,
@@ -113,6 +114,7 @@ def main(
     model = SleepApneaModel(
         vit_size=vit_size,
         finetuneing_method=finetuning_method,
+        patch_size=patch_size,
         num_classes=len(np.unique(labels)),
         learning_rate=learning_rate,
         label_smoothing=label_smoothing,
