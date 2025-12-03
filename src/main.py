@@ -9,6 +9,7 @@ import lightning as L
 
 from torch.backends import cudnn
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
+from torchaudio import transforms as audio_transforms
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
 from typing import Literal, Annotated
@@ -71,12 +72,11 @@ def main(
     if use_augmentation:
         transform_train = transforms.Compose([
             transforms.Lambda(lambda x: 10 * torch.log10(x + 1e-12)),
-            transforms.RandomVerticalFlip(),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop((14, 7)),
             transforms.Resize((224, 224), antialias=True,
                             interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.Normalize(mean=mean, std=std)
+            transforms.Normalize(mean=mean, std=std),
+            audio_transforms.TimeMasking(time_mask_param=50),
+            audio_transforms.FrequencyMasking(freq_mask_param=50),
         ])
     else:
         transform_train = transform_validation
