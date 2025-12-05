@@ -1,4 +1,4 @@
-# From Wireless to Wellness: Transfer Learning with WaveFM for Sleep Apnea Detection
+# 🌙 From Wireless to Wellness: Transfer Learning with WaveFM for Sleep Apnea Detection
 
 This repository contains the code for our ENEL 645 project:
 
@@ -9,9 +9,23 @@ The project evaluates whether **WaveFM**, a foundation model pretrained on wirel
 1. Training from scratch  
 2. Patch-embed + head fine-tuning (frozen encoder)  
 3. Full model fine-tuning  
-4. Parameter-efficient fine-tuning with **LoRA** :contentReference[oaicite:0]{index=0}  
+4. Parameter-efficient fine-tuning with **LoRA**   
 
-The experiments, methodology, and results are described in the accompanying project report PDF in this repo. :contentReference[oaicite:1]{index=1}  
+---
+
+## 📌 Overview
+
+This repository implements a full deep-learning pipeline for **sleep apnea detection** using **UWB radar** data from the APNIWAVE dataset. The goal is to evaluate whether **WavesFM**, a foundation model pretrained on wireless communication signals, can successfully transfer to **healthcare radar sensing**.
+
+The project includes:
+
+- 🟦 Spectrogram generation from raw radar signals  
+- 🟦 Four training modes: scratch, head-only, full FT, LoRA  
+- 🟦 Custom Vision Transformer with patch embedding modifications  
+- 🟦 W&B experiment tracking  
+- 🟦 LoRA adapters for parameter-efficient fine-tuning  
+- 🟦 CLI training interface with Typer  
+- 🟦 Lightning training loop with checkpointing and early stopping 
 
 ---
 
@@ -104,5 +118,29 @@ Key components:
     - LoRA `rank`/`alpha`, learning rate, label smoothing, etc.
 - Command is registered as `app.main` and executed when running `python main.py`.
 
+---
 
+## 🧠 Methodology Summary
 
+### **Data**
+- APNIWAVE: 1011 labeled 10-second radar segments  
+- Classes: Normal, Apnea, Hypopnea  
+- Reshaped into **5 channels** before spectrogram generation
+
+### **Preprocessing Steps**
+1. Compute STFT spectrograms using SciPy.  
+2. Convert to decibels: `10 * log10(x + 1e-12)`.  
+3. Resize to 224×224 for WavesFM-ViT compatibility.  
+4. Normalize using training-set mean & std.  
+5. Optional: Time masking + frequency masking augmentations.
+
+### **Model Types**
+- Vision Transformer sizes: **small**, **medium**, **large**  
+- Patch embed modified to accept **5 input channels**  
+- Training modes:
+  - `scratch`
+  - `head` (freeze encoder; train patch-embed + head)
+  - `full` (train entire encoder)
+  - `lora` (freeze encoder; train LoRA adapters)
+
+---
