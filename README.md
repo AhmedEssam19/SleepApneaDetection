@@ -18,13 +18,6 @@ The experiments, methodology, and results are described in the accompanying proj
 ## Contents
 
 - [Repository structure](#repository-structure)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Data format](#data-format)
-- [Running experiments](#running-experiments)
-- [Fine-tuning modes](#fine-tuning-modes)
-- [Reproducing paper results](#reproducing-paper-results)
-- [Citation](#citation)
 
 ---
 
@@ -111,18 +104,5 @@ Key components:
     - LoRA `rank`/`alpha`, learning rate, label smoothing, etc.
 - Command is registered as `app.main` and executed when running `python main.py`.
 
-### Auxiliary / implied files
 
-- **`config.yml`**  
-  YAML configuration file loaded by `config.py`. Example keys:
-  ```yaml
-  spectrogram:
-    sample_rate: 20
-    window_size: 256
-    window_overlap: 128
 
-  wandb:
-    project_name: wavefm-sleep-apnea
-    WANDB_KEY: "YOUR_WANDB_KEY_HERE"
-
-  checkpoint_dir: "checkpoints/"
