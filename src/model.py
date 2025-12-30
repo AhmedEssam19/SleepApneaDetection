@@ -6,7 +6,7 @@ import torch.nn as nn
 import lightning as L
 
 from functools import partial
-from torch.nn import CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from torch.optim import AdamW
 from timm.models._manipulate import checkpoint_seq
 from typing import Literal
@@ -100,50 +100,21 @@ def vit_large_patch16(**kwargs):
     return model
 
 
-class SleepApneaModel(L.LightningModule):
-    def __init__(
-            self, 
-            vit_size: Literal["small", "medium", "large"],
-            finetuneing_method: Literal["scratch", "head", "full", "lora"],
-            patch_size: int,
-            num_classes: int,
-            learning_rate: float,
-            label_smoothing: float,
-            rank: int,
-            alpha: float,
-            pretrained_vit_path: str = None
-        ):
-        super().__init__()
-        self.vit = self._init_vit(vit_size, num_classes, patch_size)
-        self._setup_fintuneing(finetuneing_method, rank, alpha, pretrained_vit_path)
-        self.loss_fn = CrossEntropyLoss(label_smoothing=label_smoothing)
-        self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
-        self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
-        self.learning_rate = learning_rate
-        self.save_hyperparameters()
-
-    def _init_vit(self, vit_size: Literal["small", "medium", "large"], num_classes: int, patch_size: int):
-        vit = {
-            "small": vit_small_patch16,
-            "medium": vit_medium_patch16,
-            "large": vit_large_patch16
-        }
-        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=5, patch_size=patch_size)
-    
-    def _setup_fintuneing(self, finetuneing_method: Literal["scratch", "head", "full", "lora"], rank: int, alpha: int, checkpoint_path: str = None):
-        if finetuneing_method != "scratch":
+class PLModel(L.LightningModule):
+    def _setup_finetuning(self, finetuning_method: Literal["scratch", "head", "full", "lora"], rank: int, alpha: int, checkpoint_path: str = None):
+        if finetuning_method != "scratch":
             if checkpoint_path is None:
                 raise ValueError("Checkpoint path must be provided for finetuning.")
             
             self._load_pretrained_weights(checkpoint_path)
         
-        if finetuneing_method == "head":
+        if finetuning_method == "head":
             self.vit.freeze_encoder()
-        elif finetuneing_method == "lora":
+        elif finetuning_method == "lora":
             self.vit = create_lora_model(self.vit, rank, alpha)
             self.vit.freeze_encoder_lora()
-        elif finetuneing_method != "scratch" and finetuneing_method != "full":
-            raise ValueError(f"Unknown finetuneing_method: {finetuneing_method}")
+        elif finetuning_method != "scratch" and finetuning_method != "full":
+            raise ValueError(f"Unknown finetuning_method: {finetuning_method}")
             
     def _load_pretrained_weights(self, checkpoint_path: str):    
         checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
@@ -199,3 +170,84 @@ class SleepApneaModel(L.LightningModule):
                 "monitor": "val_loss"
             }
         }
+
+
+class SleepApneaModel(PLModel):
+    def __init__(
+        self, 
+        vit_size: Literal["small", "medium", "large"],
+        finetuning_method: Literal["scratch", "head", "full", "lora"],
+        patch_size: int,
+        num_classes: int,
+        learning_rate: float,
+        label_smoothing: float,
+        rank: int,
+        alpha: float,
+        pretrained_vit_path: str = None
+    ):
+        super().__init__()
+        self.vit = self._init_vit(vit_size, num_classes, patch_size)
+        self._setup_finetuning(finetuning_method, rank, alpha, pretrained_vit_path)
+        self.loss_fn = CrossEntropyLoss(label_smoothing=label_smoothing)
+        self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
+        self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
+        self.learning_rate = learning_rate
+        self.save_hyperparameters()
+
+    def _init_vit(self, vit_size: Literal["small", "medium", "large"], num_classes: int, patch_size: int):
+        vit = {
+            "small": vit_small_patch16,
+            "medium": vit_medium_patch16,
+            "large": vit_large_patch16
+        }
+        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=5, patch_size=patch_size)
+    
+
+
+class EEGModel(PLModel):
+    def __init__(self, 
+        vit_size: Literal["small", "medium", "large"],
+        finetuning_method: Literal["scratch", "head", "full", "lora"],
+        patch_size: int,
+        num_classes: int,
+        learning_rate: float,
+        rank: int,
+        alpha: float,
+        pretrained_vit_path: str = None
+    ):
+        super().__init__()
+        self.vit = self._init_vit(vit_size, num_classes, patch_size)
+        self._setup_finetuning(finetuning_method, rank, alpha, pretrained_vit_path)
+        self.loss_fn = BCEWithLogitsLoss()
+        self.train_acc = torchmetrics.Accuracy(task="binary")
+        self.val_acc = torchmetrics.Accuracy(task="binary")
+        self.test_acc = torchmetrics.Accuracy(task="binary")
+        self.learning_rate = learning_rate
+        self.save_hyperparameters()
+
+    def _init_vit(self, vit_size: Literal["small", "medium", "large"], num_classes: int, patch_size: int):
+        vit = {
+            "small": vit_small_patch16,
+            "medium": vit_medium_patch16,
+            "large": vit_large_patch16
+        }
+        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=3, patch_size=patch_size)
+    
+    def forward(self, inputs):
+        output = self.vit(inputs).view(-1)
+        return output
+    
+    def test_step(self, batch, _):
+        inputs, labels = batch
+        preds = self(inputs)
+        loss = self.loss_fn(preds, labels)
+        self.test_acc(preds, labels)
+        self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(
+            "test_acc",
+            self.test_acc,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )

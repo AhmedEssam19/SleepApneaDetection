@@ -1,9 +1,9 @@
 spectrogram:
-  sample_rate: 17
-  window_size: 32
-  window_overlap: 16
+  sample_rate: 250
+  window_size: 50
+  window_overlap: 25
 
 wandb:
-  project_name: "sleep-apnea-detection"
+  project_name: "eeg"
 
 checkpoint_dir: "checkpoints"
