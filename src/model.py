@@ -171,12 +171,21 @@ class PLModel(L.LightningModule):
             }
         }
 
+    def _init_vit(self, vit_size: Literal["small", "medium", "large"], in_chans: int, patch_size: int, num_classes: int):
+        vit = {
+            "small": vit_small_patch16,
+            "medium": vit_medium_patch16,
+            "large": vit_large_patch16
+        }
+        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=in_chans, patch_size=patch_size)
+    
 
 class SleepApneaModel(PLModel):
     def __init__(
         self, 
         vit_size: Literal["small", "medium", "large"],
         finetuning_method: Literal["scratch", "head", "full", "lora"],
+        in_chans: int, 
         patch_size: int,
         num_classes: int,
         learning_rate: float,
@@ -186,7 +195,7 @@ class SleepApneaModel(PLModel):
         pretrained_vit_path: str = None
     ):
         super().__init__()
-        self.vit = self._init_vit(vit_size, num_classes, patch_size)
+        self.vit = self._init_vit(vit_size, in_chans, patch_size, num_classes)
         self._setup_finetuning(finetuning_method, rank, alpha, pretrained_vit_path)
         self.loss_fn = CrossEntropyLoss(label_smoothing=label_smoothing)
         self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
@@ -194,20 +203,13 @@ class SleepApneaModel(PLModel):
         self.learning_rate = learning_rate
         self.save_hyperparameters()
 
-    def _init_vit(self, vit_size: Literal["small", "medium", "large"], num_classes: int, patch_size: int):
-        vit = {
-            "small": vit_small_patch16,
-            "medium": vit_medium_patch16,
-            "large": vit_large_patch16
-        }
-        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=5, patch_size=patch_size)
-    
 
 
 class EEGModel(PLModel):
     def __init__(self, 
         vit_size: Literal["small", "medium", "large"],
         finetuning_method: Literal["scratch", "head", "full", "lora"],
+        in_chans: int,
         patch_size: int,
         num_classes: int,
         learning_rate: float,
@@ -216,26 +218,14 @@ class EEGModel(PLModel):
         pretrained_vit_path: str = None
     ):
         super().__init__()
-        self.vit = self._init_vit(vit_size, num_classes, patch_size)
+        self.vit = self._init_vit(vit_size, in_chans, patch_size, num_classes)
         self._setup_finetuning(finetuning_method, rank, alpha, pretrained_vit_path)
         self.loss_fn = BCEWithLogitsLoss()
-        self.train_acc = torchmetrics.Accuracy(task="binary")
-        self.val_acc = torchmetrics.Accuracy(task="binary")
-        self.test_acc = torchmetrics.Accuracy(task="binary")
+        self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
+        self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
+        self.test_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
         self.learning_rate = learning_rate
         self.save_hyperparameters()
-
-    def _init_vit(self, vit_size: Literal["small", "medium", "large"], num_classes: int, patch_size: int):
-        vit = {
-            "small": vit_small_patch16,
-            "medium": vit_medium_patch16,
-            "large": vit_large_patch16
-        }
-        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=3, patch_size=patch_size)
-    
-    def forward(self, inputs):
-        output = self.vit(inputs).view(-1)
-        return output
     
     def test_step(self, batch, _):
         inputs, labels = batch
