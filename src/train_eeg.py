@@ -12,7 +12,6 @@ from torch.backends import cudnn
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torchaudio import transforms as audio_transforms
 from torchvision import transforms
-from sklearn.model_selection import train_test_split
 from typing import Literal, Annotated
 from lightning.pytorch import callbacks
 from lightning.pytorch.loggers import WandbLogger
@@ -31,6 +30,7 @@ def main(
     vit_size: Annotated[Literal["small", "medium", "large"], typer.Option()],
     finetuning_method: Annotated[Literal["scratch", "head", "full", "lora"], typer.Option()],
     patch_size: int = 16,
+    in_chans: int = 3,
     rank: int = 4,
     alpha: float = 16,
     pretrained_vit_path: str = None,
@@ -65,7 +65,6 @@ def main(
         loaded_labels = np.load(file_path)
         labels.append(loaded_labels)
     labels = np.concatenate(labels, axis=0)
-    labels = labels.astype(np.float32)
 
     for test_fold in range(9):
         X_test = data[folds == test_fold]
@@ -80,6 +79,7 @@ def main(
             X_train, y_train, X_val, y_val, X_test, y_test,
             vit_size=vit_size,
             finetuning_method=finetuning_method,
+            in_chans=in_chans,
             patch_size=patch_size,
             rank=rank,
             alpha=alpha,
@@ -102,6 +102,7 @@ def train_fold(
     y_test,
     vit_size: Literal["small", "medium", "large"],
     finetuning_method: Literal["scratch", "head", "full", "lora"],
+    in_chans: int,
     patch_size: int,
     rank: int,
     alpha: float,
@@ -178,8 +179,9 @@ def train_fold(
     model = EEGModel(
         vit_size=vit_size,
         finetuning_method=finetuning_method,
+        in_chans=in_chans,
         patch_size=patch_size,
-        num_classes=1,
+        num_classes=len(np.unique(y_train)),
         learning_rate=learning_rate,
         rank=rank,
         alpha=alpha,

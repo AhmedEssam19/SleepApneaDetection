@@ -6,7 +6,7 @@ import torch.nn as nn
 import lightning as L
 
 from functools import partial
-from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
+from torch.nn import CrossEntropyLoss
 from torch.optim import AdamW
 from timm.models._manipulate import checkpoint_seq
 from typing import Literal
@@ -163,13 +163,7 @@ class PLModel(L.LightningModule):
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate)
         optimizer_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": optimizer_scheduler,
-                "monitor": "val_loss"
-            }
-        }
+        return optimizer
 
     def _init_vit(self, vit_size: Literal["small", "medium", "large"], in_chans: int, patch_size: int, num_classes: int):
         vit = {
@@ -220,7 +214,7 @@ class EEGModel(PLModel):
         super().__init__()
         self.vit = self._init_vit(vit_size, in_chans, patch_size, num_classes)
         self._setup_finetuning(finetuning_method, rank, alpha, pretrained_vit_path)
-        self.loss_fn = BCEWithLogitsLoss()
+        self.loss_fn = CrossEntropyLoss()
         self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
         self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
         self.test_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
