@@ -10,12 +10,10 @@ import lightning as L
 
 from torch.backends import cudnn
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from torchaudio import transforms as audio_transforms
-from torchvision import transforms
 from typing import Literal, Annotated
 from lightning.pytorch import callbacks
 from lightning.pytorch.loggers import WandbLogger
-from dataset import SleepApneaDataset
+from dataset import EEGDataset
 from model import EEGModel
 from config import CONFIG
 
@@ -35,7 +33,6 @@ def main(
     alpha: float = 16,
     pretrained_vit_path: str = None,
     learning_rate: float = 1e-4,
-    use_augmentation: bool = False,
     batch_size: int = 32,
     num_workers: int = 4,
     early_stopping_patience: int = 10,
@@ -85,7 +82,6 @@ def main(
             alpha=alpha,
             pretrained_vit_path=pretrained_vit_path,
             learning_rate=learning_rate,
-            use_augmentation=use_augmentation,
             batch_size=batch_size,
             num_workers=num_workers,
             early_stopping_patience=early_stopping_patience,
@@ -108,42 +104,14 @@ def train_fold(
     alpha: float,
     pretrained_vit_path: str,
     learning_rate: float,
-    use_augmentation: bool,
     batch_size: int,
     num_workers: int,
     early_stopping_patience: int,
     logging_steps: int,
 ):
-        
-    transform = transforms.Compose([
-        transforms.Lambda(lambda x: 10 * torch.log10(x + 1e-12)),
-        transforms.Resize((224, 224), antialias=True, interpolation=transforms.InterpolationMode.BICUBIC),
-    ])
-    dataset = SleepApneaDataset(X_train, y_train, transform=transform)
-    mean, std = dataset.get_statistics()
-
-    transform_validation = transforms.Compose([
-        transforms.Lambda(lambda x: 10 * torch.log10(x + 1e-12)),
-        transforms.Resize((224, 224), antialias=True,
-                        interpolation=transforms.InterpolationMode.BICUBIC),
-        transforms.Normalize(mean=mean, std=std)
-    ])
-
-    if use_augmentation:
-        transform_train = transforms.Compose([
-            transforms.Lambda(lambda x: 10 * torch.log10(x + 1e-12)),
-            transforms.Resize((224, 224), antialias=True,
-                            interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.Normalize(mean=mean, std=std),
-            audio_transforms.TimeMasking(time_mask_param=50),
-            audio_transforms.FrequencyMasking(freq_mask_param=50),
-        ])
-    else:
-        transform_train = transform_validation
-
-    train_dataset = SleepApneaDataset(X_train, y_train, transform=transform_train)
-    val_dataset = SleepApneaDataset(X_val, y_val, transform=transform_validation)
-    test_dataset = SleepApneaDataset(X_test, y_test, transform=transform_validation)
+    train_dataset = EEGDataset(X_train, y_train)
+    val_dataset = EEGDataset(X_val, y_val)
+    test_dataset = EEGDataset(X_test, y_test)
     sampler_train = RandomSampler(train_dataset)
     sampler_val = SequentialSampler(val_dataset)
     sampler_test = SequentialSampler(test_dataset)
@@ -191,7 +159,6 @@ def train_fold(
     wandb_logger.log_hyperparams({
         "batch_size": batch_size,
         "early_stopping_patience": early_stopping_patience,
-        "use_augmentation": use_augmentation
     })
 
     trainer.fit(model, train_dataloader, val_dataloader)

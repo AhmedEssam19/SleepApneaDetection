@@ -119,7 +119,7 @@ class PLModel(L.LightningModule):
     def _load_pretrained_weights(self, checkpoint_path: str):    
         checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
         for key in list(checkpoint['model'].keys()):
-            if key.startswith('head.') or key.startswith('patch_embed.'):
+            if key.startswith('head.') or key.startswith('patch_embed.') or key.startswith('pos_embed'):
                 print("Removing key from pretrained weights:", key)
                 del checkpoint['model'][key]
         incompatible_keys = self.vit.load_state_dict(checkpoint['model'], strict=False)
@@ -235,3 +235,40 @@ class EEGModel(PLModel):
             prog_bar=True,
             logger=True,
         )
+
+    def _init_vit(self, vit_size: Literal["small", "medium", "large"], in_chans: int, patch_size: int, num_classes: int):
+        vit = {
+            "small": vit_small_patch16,
+            "medium": vit_medium_patch16,
+            "large": vit_large_patch16
+        }
+        return vit[vit_size](num_classes=num_classes, global_pool="token", in_chans=in_chans, patch_size=patch_size, embed_layer=SignalEmbed)
+    
+
+class SignalEmbedBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int, padding: int = 1):
+        super(SignalEmbedBlock, self).__init__()
+        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding=padding)
+        self.norm = nn.LayerNorm(out_channels)
+        self.gelu = nn.GELU()
+
+    def forward(self, x):
+        x = self.conv(x.transpose(1, 2)).transpose(1, 2)
+        x = self.norm(x)
+        x = self.gelu(x)
+        return x
+
+class SignalEmbed(nn.Module):
+    def __init__(self, in_chans: int, embed_dim: int, **kwargs):
+        super(SignalEmbed, self).__init__()
+        self.norm = nn.LayerNorm(in_chans)
+        self.blocks = nn.Sequential(*[
+            SignalEmbedBlock(in_chans, embed_dim, kernel_size=3, stride=2),
+            SignalEmbedBlock(embed_dim, embed_dim, kernel_size=3, stride=2),
+        ])
+
+        self.num_patches = 250
+
+    def forward(self, x):
+        x = self.norm(x.transpose(1, 2))
+        return self.blocks(x)

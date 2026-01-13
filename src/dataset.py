@@ -43,3 +43,22 @@ class SleepApneaDataset(Dataset):
         std_val = torch.std(transformed_data)
 
         return mean_val, std_val
+
+
+class EEGDataset(Dataset):
+    def __init__(self, data, labels, transform=None):
+        self.data = data
+        self.labels = labels
+        self.transform = transform
+
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        sample = self.data[idx]
+        label = self.labels[idx]
+        if self.transform:
+            sample = self.transform(torch.tensor(sample)).float()
+        return torch.tensor(sample, dtype=torch.float32), label
+    
