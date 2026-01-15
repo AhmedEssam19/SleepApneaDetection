@@ -74,6 +74,7 @@ def main(
 
         train_fold(
             X_train, y_train, X_val, y_val, X_test, y_test,
+            test_fold=test_fold + 1,
             vit_size=vit_size,
             finetuning_method=finetuning_method,
             in_chans=in_chans,
@@ -96,6 +97,7 @@ def train_fold(
     y_val,
     X_test,
     y_test,
+    test_fold: int,
     vit_size: Literal["small", "medium", "large"],
     finetuning_method: Literal["scratch", "head", "full", "lora"],
     in_chans: int,
@@ -159,6 +161,7 @@ def train_fold(
     wandb_logger.log_hyperparams({
         "batch_size": batch_size,
         "early_stopping_patience": early_stopping_patience,
+        "test_fold": test_fold
     })
 
     trainer.fit(model, train_dataloader, val_dataloader)

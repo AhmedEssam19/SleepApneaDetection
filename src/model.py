@@ -263,8 +263,10 @@ class SignalEmbed(nn.Module):
         super(SignalEmbed, self).__init__()
         self.norm = nn.LayerNorm(in_chans)
         self.blocks = nn.Sequential(*[
-            SignalEmbedBlock(in_chans, embed_dim, kernel_size=3, stride=2),
-            SignalEmbedBlock(embed_dim, embed_dim, kernel_size=3, stride=2),
+            SignalEmbedBlock(in_chans, 64, kernel_size=3, stride=1),
+            SignalEmbedBlock(64, 128, kernel_size=3, stride=2),
+            SignalEmbedBlock(128, 256, kernel_size=3, stride=2),
+            SignalEmbedBlock(256, embed_dim, kernel_size=3, stride=1),
         ])
 
         self.num_patches = 250
