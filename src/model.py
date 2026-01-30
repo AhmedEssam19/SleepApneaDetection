@@ -300,14 +300,14 @@ class HeartRateModel(PLModel):
 
     def training_step(self, batch, _):
         inputs, labels = batch
-        preds = self(inputs)
+        preds = self(inputs).view(-1)
         loss = self.loss_fn(preds, labels)
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return loss
 
     def _evaluation_step(self, batch, _, name):
         inputs, labels = batch
-        preds = self(inputs)
+        preds = self(inputs).view(-1)
         loss = self.loss_fn(preds, labels)
         self.log(f"{name}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
     
