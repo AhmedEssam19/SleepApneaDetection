@@ -1,9 +1,9 @@
 spectrogram:
-  sample_rate: 250
-  window_size: 50
-  window_overlap: 25
+  sample_rate: 50
+  window_size: 200
+  window_overlap: 150
 
 wandb:
-  project_name: "eeg"
+  project_name: "heart_rate"
 
 checkpoint_dir: "checkpoints"

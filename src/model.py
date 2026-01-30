@@ -6,7 +6,7 @@ import torch.nn as nn
 import lightning as L
 
 from functools import partial
-from torch.nn import CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, MSELoss
 from torch.optim import AdamW
 from timm.models._manipulate import checkpoint_seq
 from typing import Literal
@@ -119,7 +119,7 @@ class PLModel(L.LightningModule):
     def _load_pretrained_weights(self, checkpoint_path: str):    
         checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
         for key in list(checkpoint['model'].keys()):
-            if key.startswith('head.') or key.startswith('patch_embed.') or key.startswith('pos_embed'):
+            if key.startswith('head.') or key.startswith('patch_embed.'):
                 print("Removing key from pretrained weights:", key)
                 del checkpoint['model'][key]
         incompatible_keys = self.vit.load_state_dict(checkpoint['model'], strict=False)
@@ -162,8 +162,14 @@ class PLModel(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate)
-        optimizer_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-        return optimizer
+        optimizer_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": optimizer_scheduler,
+                "monitor": "val_loss",
+            },
+        }
 
     def _init_vit(self, vit_size: Literal["small", "medium", "large"], in_chans: int, patch_size: int, num_classes: int):
         vit = {
@@ -263,10 +269,7 @@ class SignalEmbed(nn.Module):
         super(SignalEmbed, self).__init__()
         self.norm = nn.LayerNorm(in_chans)
         self.blocks = nn.Sequential(*[
-            SignalEmbedBlock(in_chans, 64, kernel_size=3, stride=1),
-            SignalEmbedBlock(64, 128, kernel_size=3, stride=2),
-            SignalEmbedBlock(128, 256, kernel_size=3, stride=2),
-            SignalEmbedBlock(256, embed_dim, kernel_size=3, stride=1),
+            SignalEmbedBlock(in_chans, embed_dim, kernel_size=7, stride=4, padding=3),
         ])
 
         self.num_patches = 250
@@ -274,3 +277,43 @@ class SignalEmbed(nn.Module):
     def forward(self, x):
         x = self.norm(x.transpose(1, 2))
         return self.blocks(x)
+    
+
+class HeartRateModel(PLModel):
+    def __init__(self, 
+        vit_size: Literal["small", "medium", "large"],
+        finetuning_method: Literal["scratch", "head", "full", "lora"],
+        in_chans: int,
+        patch_size: int,
+        num_classes: int,
+        learning_rate: float,
+        rank: int,
+        alpha: float,
+        pretrained_vit_path: str = None
+    ):
+        super().__init__()
+        self.vit = self._init_vit(vit_size, in_chans, patch_size, num_classes)
+        self._setup_finetuning(finetuning_method, rank, alpha, pretrained_vit_path)
+        self.loss_fn = MSELoss()
+        self.learning_rate = learning_rate
+        self.save_hyperparameters()
+
+    def training_step(self, batch, _):
+        inputs, labels = batch
+        preds = self(inputs)
+        loss = self.loss_fn(preds, labels)
+        self.log("train_loss", loss, prog_bar=True, logger=True)
+        return loss
+
+    def _evaluation_step(self, batch, _, name):
+        inputs, labels = batch
+        preds = self(inputs)
+        loss = self.loss_fn(preds, labels)
+        self.log(f"{name}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+    
+    def validation_step(self, batch, _):
+        return self._evaluation_step(batch, _, "val")
+    
+    def test_step(self, batch, _):
+        return self._evaluation_step(batch, _, "test")
+
