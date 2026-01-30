@@ -73,12 +73,15 @@ class HeartRateDataset(Dataset):
 
     def __getitem__(self, idx):
         sample = self.data[idx]
-        _, _, spectrogram = signal.spectrogram(
+        f, _, spectrogram = signal.spectrogram(
             sample,
             fs=CONFIG.spectrogram.sample_rate,
             nperseg=CONFIG.spectrogram.window_size,
             noverlap=CONFIG.spectrogram.window_overlap
         )
+
+        freq_mask = (f >= CONFIG.spectrogram.min_freq) & (f <= CONFIG.spectrogram.max_freq)
+        spectrogram = spectrogram[freq_mask, :]
         label = self.labels[idx]
         spectrogram = torch.tensor(spectrogram).unsqueeze(0)
 
@@ -88,13 +91,18 @@ class HeartRateDataset(Dataset):
         return spectrogram, torch.tensor(label, dtype=torch.float32)
     
     def get_statistics(self):
-        _, _, spectrogram = signal.spectrogram(
+        f, _, spectrogram = signal.spectrogram(
             self.data,
             fs=CONFIG.spectrogram.sample_rate,
             nperseg=CONFIG.spectrogram.window_size,
-            noverlap=CONFIG.spectrogram.window_overlap
+            noverlap=CONFIG.spectrogram
+            .window_overlap
         )
+
+        freq_mask = (f >= CONFIG.spectrogram.min_freq) & (f <= CONFIG.spectrogram.max_freq)
+        spectrogram = spectrogram[:, freq_mask, :]
         spectrogram = torch.tensor(spectrogram).unsqueeze(1)
+
         if self.transform:
             transformed_data = self.transform(spectrogram)
         else:

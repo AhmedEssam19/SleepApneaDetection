@@ -8,6 +8,8 @@ class SpectrogramConfig(BaseSettings):
     sample_rate: int
     window_size: int
     window_overlap: int
+    max_freq: float
+    min_freq: float
 
 class WandBConfig(BaseSettings):
     project_name: str

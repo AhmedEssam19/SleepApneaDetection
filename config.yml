@@ -2,6 +2,8 @@ spectrogram:
   sample_rate: 50
   window_size: 600
   window_overlap: 550
+  min_freq: 0.5
+  max_freq: 3.5
 
 wandb:
   project_name: "heart_rate"
