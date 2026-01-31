@@ -162,14 +162,27 @@ class PLModel(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate)
-        optimizer_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": optimizer_scheduler,
+        on_plateau_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.25, patience=self.learning_rate_patience)
+
+        def lr_lambda(step):
+            if step < self.warmup_steps:
+                return float(step + 1) / float(self.warmup_steps)
+            
+            return optimizer.param_groups[0]['lr'] / self.learning_rate
+        
+        scheduler_warmup = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+
+        return [optimizer] , [
+            {
+                "scheduler": on_plateau_scheduler,
                 "monitor": "val_loss",
             },
-        }
+            {
+                "scheduler": scheduler_warmup,
+                "interval": "step",
+                "frequency": 1
+            }
+        ]
 
     def _init_vit(self, vit_size: Literal["small", "medium", "large"], in_chans: int, patch_size: int, num_classes: int):
         vit = {
@@ -287,6 +300,8 @@ class HeartRateModel(PLModel):
         patch_size: int,
         num_classes: int,
         learning_rate: float,
+        warmup_steps: int,
+        learning_rate_patience: int,
         rank: int,
         alpha: float,
         pretrained_vit_path: str = None
@@ -296,13 +311,15 @@ class HeartRateModel(PLModel):
         self._setup_finetuning(finetuning_method, rank, alpha, pretrained_vit_path)
         self.loss_fn = MSELoss()
         self.learning_rate = learning_rate
+        self.warmup_steps = warmup_steps
+        self.learning_rate_patience = learning_rate_patience
         self.save_hyperparameters()
 
     def training_step(self, batch, _):
         inputs, labels = batch
         preds = self(inputs).view(-1)
         loss = self.loss_fn(preds, labels)
-        self.log("train_loss", loss, prog_bar=True, logger=True)
+        self.log("train_loss", loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
         return loss
 
     def _evaluation_step(self, batch, _, name):

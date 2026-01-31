@@ -36,8 +36,10 @@ def main(
     pretrained_vit_path: str = None,
     learning_rate: float = 1e-3,
     batch_size: int = 64,
+    warmup_steps: int = 500,
+    learning_rate_patience: int = 2,
     num_workers: int = 4,
-    early_stopping_patience: int = 10,
+    early_stopping_patience: int = 5,
     logging_steps: int = 1,
     seed: int = 42
 ):
@@ -107,7 +109,7 @@ def main(
     train_callbacks = [
         callbacks.ModelCheckpoint(monitor="val_loss", mode="min", dirpath=CONFIG.checkpoint_dir, filename=checkpoint_filename),
         callbacks.EarlyStopping(monitor="val_loss", patience=early_stopping_patience, mode="min"),
-        callbacks.LearningRateMonitor(logging_interval='epoch'),
+        callbacks.LearningRateMonitor(logging_interval='step'),
         callbacks.RichProgressBar(),
     ]
 
@@ -126,6 +128,8 @@ def main(
         patch_size=patch_size,
         num_classes=1,
         learning_rate=learning_rate,
+        warmup_steps=warmup_steps,
+        learning_rate_patience=learning_rate_patience,
         rank=rank,
         alpha=alpha,
         pretrained_vit_path=pretrained_vit_path
