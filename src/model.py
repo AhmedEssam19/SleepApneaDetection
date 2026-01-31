@@ -162,7 +162,7 @@ class PLModel(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate)
-        on_plateau_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.25, patience=self.learning_rate_patience)
+        on_plateau_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=self.learning_rate_patience)
 
         def lr_lambda(step):
             if step < self.warmup_steps:

@@ -37,9 +37,9 @@ def main(
     learning_rate: float = 1e-3,
     batch_size: int = 64,
     warmup_steps: int = 500,
-    learning_rate_patience: int = 2,
+    learning_rate_patience: int = 1,
     num_workers: int = 4,
-    early_stopping_patience: int = 5,
+    early_stopping_patience: int = 7,
     logging_steps: int = 1,
     seed: int = 42
 ):
